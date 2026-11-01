@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>おかね ぴったり げーむ</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts for cute Japanese font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            background-color: #FEF3C7; /* Tailwind amber-50 */
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        /* ゲームボード：タッチ時のスクロール防止 */
+        #game-board {
+            touch-action: none;
+            background-image: radial-gradient(#FDE68A 2px, transparent 2px);
+            background-size: 20px 20px;
+        }
+
+        /* コインの基本スタイル */
+        .coin {
+            position: absolute;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1);
+            cursor: grab;
+            transition: transform 0.1s;
+            z-index: 10;
+            /* タッチ時のハイライト防止 */
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .coin:active, .coin.dragging {
+            cursor: grabbing;
+            transform: scale(1.15);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            z-index: 100 !important;
+        }
+
+        /* 各コインのデザイン */
+        .coin-500 {
+            background: linear-gradient(135deg, #FEF3C7, #D6D3D1); /* 少し黄色みがかった銀色 */
+            border: 3px solid #A8A29E;
+            color: #44403C;
+            width: 72px; height: 72px; font-size: 28px;
+        }
+        .coin-100 {
+            background: linear-gradient(135deg, #F1F5F9, #CBD5E1);
+            border: 3px solid #94A3B8;
+            color: #334155;
+            width: 64px; height: 64px; font-size: 24px;
+        }
+        .coin-50 {
+            background: linear-gradient(135deg, #F1F5F9, #CBD5E1);
+            border: 3px solid #94A3B8;
+            color: #334155;
+            width: 58px; height: 58px; font-size: 20px;
+        }
+        .coin-10 {
+            background: linear-gradient(135deg, #FCD34D, #D97706);
+            border: 3px solid #B45309;
+            color: #451A03;
+            width: 54px; height: 54px; font-size: 20px;
+        }
+        .coin-5 {
+            background: linear-gradient(135deg, #FEF08A, #EAB308);
+            border: 3px solid #CA8A04;
+            color: #713F12;
+            width: 50px; height: 50px; font-size: 18px;
+        }
+        .coin-1 {
+            background: linear-gradient(135deg, #FFFFFF, #E2E8F0);
+            border: 2px solid #CBD5E1;
+            color: #475569;
+            width: 46px; height: 46px; font-size: 18px;
+        }
+
+        /* アニメーション */
+        @keyframes popIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            80% { transform: scale(1.05); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-pop-in {
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center p-2 sm:p-4 relative">
+
+    <!-- ヘッダー部分：目標金額 -->
+    <header class="w-full max-w-md text-center mb-4 mt-2">
+        <h1 class="text-xl sm:text-2xl font-bold text-amber-700 mb-2 drop-shadow-sm">おかね ぴったり げーむ</h1>
+        <div class="bg-white px-4 py-3 rounded-2xl shadow-md border-4 border-amber-400 flex items-center justify-center gap-2">
+            <span id="target-amount" class="text-4xl sm:text-5xl font-bold text-blue-600 tracking-wider">0</span>
+            <span class="text-2xl sm:text-3xl font-bold text-gray-700">えん</span>
+            <span class="text-xl sm:text-2xl font-bold text-gray-600 ml-2">にしてね！</span>
+        </div>
+    </header>
+
+    <!-- ゲームボード -->
+    <main id="game-board" class="relative w-full max-w-md aspect-square bg-amber-100 rounded-3xl shadow-inner border-8 border-amber-300 overflow-hidden mb-6">
+        <!-- お皿 (ドロップゾーン) -->
+        <div id="plate" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-3/5 h-3/5 bg-white rounded-full shadow-lg border-4 border-gray-200 flex flex-col items-center justify-center">
+            <div class="text-gray-300 text-2xl font-bold opacity-60">おさら</div>
+            <div class="text-gray-300 text-sm font-bold opacity-60 mt-1">ここにあつめてね</div>
+        </div>
+        <!-- コインはここにJavaScriptで追加されます -->
+    </main>
+
+    <!-- フッター部分：精算ボタンと進捗 -->
+    <footer class="w-full max-w-md flex flex-col items-center gap-4">
+        <button id="checkout-btn" class="w-4/5 max-w-xs bg-red-500 hover:bg-red-400 text-white text-3xl font-bold py-4 rounded-full shadow-[0_6px_0_#991B1B] active:shadow-none active:translate-y-[6px] transition-all touch-manipulation">
+            せいさん
+        </button>
+        <div class="text-lg sm:text-xl font-bold text-amber-800 bg-amber-200 px-6 py-2 rounded-full shadow-sm">
+            <span id="progress-text">1</span> / 5 もんめ
+        </div>
+    </footer>
+
+    <!-- ================= モーダル (正解・不正解・クリア) ================= -->
+    <div id="modal-overlay" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        
+        <!-- 正解モーダル -->
+        <div id="modal-correct" class="hidden bg-white p-6 sm:p-8 rounded-3xl shadow-2xl border-4 border-green-400 text-center max-w-sm w-full">
+            <div class="text-6xl mb-4">🎉</div>
+            <h2 class="text-3xl font-bold text-green-500 mb-6">だいせいかい！</h2>
+            <button onclick="nextQuestion()" class="w-full bg-green-500 hover:bg-green-400 text-white text-2xl font-bold py-3 rounded-full shadow-[0_5px_0_#166534] active:shadow-none active:translate-y-[5px] transition-all">
+                つぎへ
+            </button>
+        </div>
+
+        <!-- 不正解モーダル -->
+        <div id="modal-incorrect" class="hidden bg-white p-6 sm:p-8 rounded-3xl shadow-2xl border-4 border-blue-400 text-center max-w-sm w-full">
+            <div class="text-6xl mb-4">🤔</div>
+            <h2 class="text-3xl font-bold text-blue-500 mb-4">おしい！</h2>
+            <p id="hint-text" class="text-xl font-bold text-gray-700 mb-6 bg-blue-50 p-4 rounded-xl"></p>
+            <button onclick="closeModal()" class="w-full bg-blue-500 hover:bg-blue-400 text-white text-2xl font-bold py-3 rounded-full shadow-[0_5px_0_#1E3A8A] active:shadow-none active:translate-y-[5px] transition-all">
+                もういちど
+            </button>
+        </div>
+
+        <!-- クリアモーダル -->
+        <div id="modal-clear" class="hidden bg-white p-6 sm:p-8 rounded-3xl shadow-2xl border-4 border-yellow-400 text-center max-w-sm w-full">
+            <div class="text-6xl mb-4">🏆</div>
+            <h2 class="text-3xl font-bold text-yellow-500 mb-2">クリア！</h2>
+            <p class="text-xl font-bold text-gray-700 mb-6">よくがんばったね！</p>
+            <button onclick="initGame()" class="w-full bg-yellow-500 hover:bg-yellow-400 text-white text-2xl font-bold py-3 rounded-full shadow-[0_5px_0_#854D0E] active:shadow-none active:translate-y-[5px] transition-all">
+                さいしょから
+            </button>
+        </div>
+
+    </div>
+
+    <!-- JavaScript ロジック -->
+    <script>
+        'use strict';
+
+        // --- 定数と状態 ---
+        const MAX_QUESTIONS = 5;
+        const COIN_TYPES = [
+            { val: 500, cls: 'coin-500' },
+            { val: 100, cls: 'coin-100' },
+            { val: 50,  cls: 'coin-50' },
+            { val: 10,  cls: 'coin-10' },
+            { val: 5,   cls: 'coin-5' },
+            { val: 1,   cls: 'coin-1' }
+        ];
+
+        let currentQuestion = 1;
+        let targetAmount = 0;
+
+        // DOM要素
+        const gameBoard = document.getElementById('game-board');
+        const plate = document.getElementById('plate');
+        const targetAmountEl = document.getElementById('target-amount');
+        const progressTextEl = document.getElementById('progress-text');
+        const checkoutBtn = document.getElementById('checkout-btn');
+        
+        const modalOverlay = document.getElementById('modal-overlay');
+        const modalCorrect = document.getElementById('modal-correct');
+        const modalIncorrect = document.getElementById('modal-incorrect');
+        const modalClear = document.getElementById('modal-clear');
+        const hintTextEl = document.getElementById('hint-text');
+
+        // --- 初期化 ---
+        function initGame() {
+            currentQuestion = 1;
+            closeModal();
+            startQuestion();
+        }
+
+        // --- 毎回の問題セットアップ ---
+        function startQuestion() {
+            updateProgress();
+            generateTargetAmount();
+            spawnCoins();
+        }
+
+        // 難易度に応じた目標金額の生成
+        function generateTargetAmount() {
+            if (currentQuestion === 1) {
+                targetAmount = getRandomInt(10, 99);      // 第1問: 10円〜99円
+            } else if (currentQuestion === 2) {
+                targetAmount = getRandomInt(100, 399);    // 第2問: 100円台〜300円台
+            } else if (currentQuestion === 3) {
+                targetAmount = getRandomInt(400, 599);    // 第3問: 500円玉を使いやすい額
+            } else if (currentQuestion === 4) {
+                targetAmount = getRandomInt(600, 899);    // 第4問: 少し難しめ
+            } else {
+                targetAmount = getRandomInt(900, 999);    // 第5問: 最大999円（1000円未満）
+            }
+            targetAmountEl.innerText = targetAmount;
+        }
+
+        // 必要なコインとダミーコインを生成して盤面に配置
+        function spawnCoins() {
+            // 古いコインを削除
+            const oldCoins = gameBoard.querySelectorAll('.coin');
+            oldCoins.forEach(c => c.remove());
+
+            // 目標金額を作るために最低限必要なコインを算出
+            let coinsToSpawn = getMinimumCoins(targetAmount);
+
+            // 難易度に応じてダミー(フェイク)のコインを追加
+            const dummyCount = 4 + currentQuestion; 
+            for(let i=0; i<dummyCount; i++) {
+                // 100円が多すぎると邪魔になるので、ランダムに低額〜中額を選びやすくする
+                const randIndex = Math.floor(Math.random() * COIN_TYPES.length);
+                coinsToSpawn.push(COIN_TYPES[randIndex].val);
+            }
+
+            // シャッフル
+            coinsToSpawn.sort(() => Math.random() - 0.5);
+
+            // ボードのサイズ取得 (リサイズ時にも対応できるようにするため生成時に基準とする)
+            const boardRect = gameBoard.getBoundingClientRect();
+
+            // コインの生成と配置
+            coinsToSpawn.forEach(val => {
+                const coinDef = COIN_TYPES.find(c => c.val === val);
+                const coinEl = document.createElement('div');
+                coinEl.className = `coin ${coinDef.cls}`;
+                coinEl.dataset.val = val;
+                coinEl.dataset.onPlate = "false";
+                coinEl.innerHTML = `<span>${val}</span>`;
+
+                // ランダムな位置（お皿の中央を避けて周りに配置）
+                // ボードの端っこ付近にばらまく
+                placeCoinRandomly(coinEl);
+
+                // ドラッグ用のイベントリスナー (Pointer EventでPC/スマホ両対応)
+                coinEl.addEventListener('pointerdown', handlePointerDown);
+                
+                gameBoard.appendChild(coinEl);
+            });
+        }
+
+        // ランダムな位置に配置（お皿の上は避ける）
+        function placeCoinRandomly(coinEl) {
+            // 仮サイズ (実際のレンダリング前なのでCSSの幅を想定)
+            const coinSize = coinEl.classList.contains('coin-500') ? 72 : 
+                             coinEl.classList.contains('coin-100') ? 64 : 
+                             coinEl.classList.contains('coin-50') ? 58 : 
+                             coinEl.classList.contains('coin-10') ? 54 : 
+                             coinEl.classList.contains('coin-5') ? 50 : 46;
+            
+            // % で配置することでレスポンシブ対応
+            let topPercent, leftPercent;
+            let isOnPlate = true;
+            
+            // お皿の領域（大体中央の20%〜80%）を避けるためのループ
+            while(isOnPlate) {
+                // 5% 〜 85% の間に配置（はみ出し防止）
+                topPercent = Math.random() * 80 + 5;
+                leftPercent = Math.random() * 80 + 5;
+
+                // 中央の 25% 〜 75% がお皿と仮定
+                if (!(topPercent > 25 && topPercent < 75 && leftPercent > 25 && leftPercent < 75)) {
+                    isOnPlate = false;
+                }
+            }
+
+            coinEl.style.top = `${topPercent}%`;
+            coinEl.style.left = `${leftPercent}%`;
+        }
+
+        // --- ドラッグ＆ドロップ処理 (Pointer Events) ---
+        let activeCoin = null;
+        let startX, startY;
+        let initialLeftPx, initialTopPx;
+
+        function handlePointerDown(e) {
+            activeCoin = e.currentTarget;
+            activeCoin.setPointerCapture(e.pointerId);
+            activeCoin.classList.add('dragging');
+
+            // %で指定されている位置を、現在のピクセル位置に変換してドラッグを開始する
+            const boardRect = gameBoard.getBoundingClientRect();
+            const coinRect = activeCoin.getBoundingClientRect();
+            
+            initialLeftPx = coinRect.left - boardRect.left;
+            initialTopPx = coinRect.top - boardRect.top;
+
+            // %指定を解除してpx指定に切り替え
+            activeCoin.style.left = `${initialLeftPx}px`;
+            activeCoin.style.top = `${initialTopPx}px`;
+
+            startX = e.clientX;
+            startY = e.clientY;
+
+            gameBoard.addEventListener('pointermove', handlePointerMove);
+            gameBoard.addEventListener('pointerup', handlePointerUp);
+            gameBoard.addEventListener('pointercancel', handlePointerUp);
+            
+            // スクロールなどのデフォルト動作を防止
+            e.preventDefault();
+        }
+
+        function handlePointerMove(e) {
+            if (!activeCoin) return;
+
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+
+            let newLeft = initialLeftPx + dx;
+            let newTop = initialTopPx + dy;
+
+            // ボード外に出ないように制限
+            const boardRect = gameBoard.getBoundingClientRect();
+            const maxLeft = boardRect.width - activeCoin.offsetWidth;
+            const maxTop = boardRect.height - activeCoin.offsetHeight;
+
+            newLeft = Math.max(0, Math.min(newLeft, maxLeft));
+            newTop = Math.max(0, Math.min(newTop, maxTop));
+
+            activeCoin.style.left = `${newLeft}px`;
+            activeCoin.style.top = `${newTop}px`;
+        }
+
+        function handlePointerUp(e) {
+            if (!activeCoin) return;
+            
+            activeCoin.classList.remove('dragging');
+            activeCoin.releasePointerCapture(e.pointerId);
+
+            gameBoard.removeEventListener('pointermove', handlePointerMove);
+            gameBoard.removeEventListener('pointerup', handlePointerUp);
+            gameBoard.removeEventListener('pointercancel', handlePointerUp);
+
+            // ドロップ時にお皿に乗っているか判定
+            checkOnPlate(activeCoin);
+
+            activeCoin = null;
+        }
+
+        // コインがお皿（中央領域）に乗っているか判定する
+        function checkOnPlate(coin) {
+            const plateRect = plate.getBoundingClientRect();
+            const coinRect = coin.getBoundingClientRect();
+
+            // コインの中心座標
+            const coinCenterX = coinRect.left + coinRect.width / 2;
+            const coinCenterY = coinRect.top + coinRect.height / 2;
+
+            // お皿の中心座標と半径
+            const plateCenterX = plateRect.left + plateRect.width / 2;
+            const plateCenterY = plateRect.top + plateRect.height / 2;
+            const plateRadius = plateRect.width / 2; // 円形と仮定
+
+            // 距離の計算
+            const distance = Math.sqrt(Math.pow(coinCenterX - plateCenterX, 2) + Math.pow(coinCenterY - plateCenterY, 2));
+
+            // お皿の半径より内側にあれば乗っていると判定
+            if (distance < plateRadius) {
+                coin.dataset.onPlate = "true";
+            } else {
+                coin.dataset.onPlate = "false";
+            }
+        }
+
+        // --- 答え合わせ処理 ---
+        checkoutBtn.addEventListener('click', () => {
+            const coins = document.querySelectorAll('.coin');
+            let currentSum = 0;
+
+            coins.forEach(c => {
+                if (c.dataset.onPlate === "true") {
+                    currentSum += parseInt(c.dataset.val);
+                }
+            });
+
+            if (currentSum === targetAmount) {
+                // 正解
+                showModal('correct');
+            } else {
+                // 不正解
+                const diff = targetAmount - currentSum;
+                let hint = "";
+                if (diff > 0) {
+                    hint = `あと <span class="text-red-500">${diff}えん</span> たりないよ！`;
+                } else {
+                    hint = `<span class="text-red-500">${-diff}えん</span> おおすぎるよ！`;
+                }
+                hintTextEl.innerHTML = hint;
+                showModal('incorrect');
+            }
+        });
+
+        // --- 進行・ユーティリティ ---
+        function nextQuestion() {
+            currentQuestion++;
+            if (currentQuestion > MAX_QUESTIONS) {
+                showModal('clear');
+            } else {
+                closeModal();
+                startQuestion();
+            }
+        }
+
+        function updateProgress() {
+            progressTextEl.innerText = currentQuestion;
+        }
+
+        // 最低限必要なコインを割り出すアルゴリズム
+        function getMinimumCoins(amount) {
+            let res = [];
+            let rem = amount;
+            COIN_TYPES.forEach(c => {
+                while(rem >= c.val) {
+                    res.push(c.val);
+                    rem -= c.val;
+                }
+            });
+            return res;
+        }
+
+        function getRandomInt(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        // --- モーダル制御 ---
+        function showModal(type) {
+            modalOverlay.classList.remove('hidden');
+            modalOverlay.classList.add('flex');
+            
+            // すべて隠す
+            modalCorrect.classList.add('hidden');
+            modalIncorrect.classList.add('hidden');
+            modalClear.classList.add('hidden');
+            
+            // アニメーション用クラスのリセット
+            [modalCorrect, modalIncorrect, modalClear].forEach(m => m.classList.remove('animate-pop-in'));
+
+            // 指定されたものを表示
+            if (type === 'correct') {
+                modalCorrect.classList.remove('hidden');
+                modalCorrect.classList.add('animate-pop-in');
+            } else if (type === 'incorrect') {
+                modalIncorrect.classList.remove('hidden');
+                modalIncorrect.classList.add('animate-pop-in');
+            } else if (type === 'clear') {
+                modalClear.classList.remove('hidden');
+                modalClear.classList.add('animate-pop-in');
+            }
+        }
+
+        function closeModal() {
+            modalOverlay.classList.add('hidden');
+            modalOverlay.classList.remove('flex');
+        }
+
+        // --- ゲーム開始 ---
+        window.onload = initGame;
+
+    </script>
+</body>
+</html>
